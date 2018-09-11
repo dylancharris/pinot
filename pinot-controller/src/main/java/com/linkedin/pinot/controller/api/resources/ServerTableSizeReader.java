@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import org.apache.commons.httpclient.ConnectTimeoutException;
 import org.apache.commons.httpclient.ConnectionPoolTimeoutException;
+import org.apache.commons.httpclient.HttpConnectionManager;
 import org.apache.commons.httpclient.URI;
 import org.apache.commons.httpclient.methods.GetMethod;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -46,9 +47,11 @@ public class ServerTableSizeReader {
       ServerTableSizeReader.class);
 
   private final Executor executor;
+  private final HttpConnectionManager connectionManager;
 
-  public ServerTableSizeReader(Executor executor) {
+  public ServerTableSizeReader(Executor executor, HttpConnectionManager connectionManager) {
     this.executor = executor;
+    this.connectionManager = connectionManager;
   }
 
   public Map<String, List<SegmentSizeInfo>> getSizeDetailsFromServers(BiMap<String, String> serverEndPoints,
@@ -61,7 +64,7 @@ public class ServerTableSizeReader {
       serverUrls.add(tableSizeUri);
     }
 
-    MultiGetRequest mget = new MultiGetRequest(executor);
+    MultiGetRequest mget = new MultiGetRequest(executor, connectionManager);
     LOGGER.info("Reading segment sizes from {} servers for table: {}, timeoutMsec: {}", serverUrls.size(), table, timeoutMsec);
     CompletionService<GetMethod> completionService = mget.execute(serverUrls, timeoutMsec);
 
@@ -69,7 +72,6 @@ public class ServerTableSizeReader {
 
     for (int i = 0; i < serverUrls.size(); i++) {
       GetMethod getMethod = null;
-      String url = serverUrls.get(i);
       try {
         getMethod = completionService.take().get();
         URI uri = getMethod.getURI();
@@ -81,19 +83,19 @@ public class ServerTableSizeReader {
         TableSizeInfo tableSizeInfo = new ObjectMapper().readValue(getMethod.getResponseBodyAsString(), TableSizeInfo.class);
         serverSegmentSizes.put(instance, tableSizeInfo.segments);
       } catch (InterruptedException e) {
-        LOGGER.warn("Interrupted exception while reading segment size for table: {}. Server: {}", table, url, e);
+        LOGGER.warn("Interrupted exception while reading segment size for table: {}", table, e);
       } catch (ExecutionException e) {
         if (Throwables.getRootCause(e) instanceof SocketTimeoutException) {
-          LOGGER.warn("Server request to read table size was timed out for table: {}. Server: {}", table, url, e);
+          LOGGER.warn("Server request to read table size was timed out for table: {}.", table, e);
         } else if (Throwables.getRootCause(e) instanceof ConnectTimeoutException) {
-          LOGGER.warn("Server request to read table size timed out waiting for connection. table: {}. Server: {}", table, url, e);
+          LOGGER.warn("Server request to read table size timed out waiting for connection. table: {}.", table, e);
         } else if (Throwables.getRootCause(e) instanceof ConnectionPoolTimeoutException) {
-          LOGGER.warn("Server request to read table size timed out on getting a connection from pool, table: {}. Server: {}", table, url, e);
+          LOGGER.warn("Server request to read table size timed out on getting a connection from pool, table: {}.", table, e);
         } else {
-          LOGGER.warn("Execution exception while reading segment sizes for table: {}. Server: {}", table, url, e);
+          LOGGER.warn("Execution exception while reading segment sizes for table: {}.", table, e);
         }
       } catch(Exception e) {
-        LOGGER.warn("Error while reading segment sizes for table: {}. Server: {}", table, url);
+        LOGGER.warn("Error while reading segment sizes for table: {}", table);
       } finally {
         if (getMethod != null) {
           getMethod.releaseConnection();

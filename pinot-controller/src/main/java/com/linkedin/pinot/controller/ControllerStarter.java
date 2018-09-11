@@ -38,6 +38,7 @@ import com.linkedin.pinot.controller.helix.core.rebalance.RebalanceSegmentStrate
 import com.linkedin.pinot.controller.helix.core.relocation.RealtimeSegmentRelocator;
 import com.linkedin.pinot.controller.helix.core.retention.RetentionManager;
 import com.linkedin.pinot.controller.validation.ValidationManager;
+import com.linkedin.pinot.filesystem.PinotFSFactory;
 import com.yammer.metrics.core.MetricsRegistry;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -46,6 +47,9 @@ import java.io.OutputStream;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.apache.commons.httpclient.HttpConnectionManager;
+import org.apache.commons.httpclient.MultiThreadedHttpConnectionManager;
+import org.apache.commons.configuration.Configuration;
 import org.apache.commons.io.FileUtils;
 import org.apache.helix.HelixManager;
 import org.apache.helix.task.TaskDriver;
@@ -118,11 +122,22 @@ public class ControllerStarter {
     MetricsHelper.initializeMetrics(_config.subset(METRICS_REGISTRY_NAME));
     MetricsHelper.registerMetricsRegistry(_metricsRegistry);
 
+    Configuration pinotFSConfig = _config.subset(CommonConstants.Controller.PREFIX_OF_CONFIG_OF_PINOT_FS_FACTORY);
+    Configuration segmentFetcherFactoryConfig =
+        _config.subset(CommonConstants.Server.PREFIX_OF_CONFIG_OF_SEGMENT_FETCHER_FACTORY);
+
     // Start all components
+    LOGGER.info("Initializing PinotFSFactory");
+    try {
+      PinotFSFactory.init(pinotFSConfig);
+    } catch (Exception e) {
+      Utils.rethrowException(e);
+    }
+
     LOGGER.info("Initializing SegmentFetcherFactory");
     try {
       SegmentFetcherFactory.getInstance()
-          .init(_config.subset(CommonConstants.Controller.PREFIX_OF_CONFIG_OF_SEGMENT_FETCHER_FACTORY));
+          .init(segmentFetcherFactoryConfig, pinotFSConfig);
     } catch (Exception e) {
       throw new RuntimeException("Caught exception while initializing SegmentFetcherFactory", e);
     }
@@ -182,6 +197,8 @@ public class ControllerStarter {
 
     LOGGER.info("Controller download url base: {}", _config.generateVipUrl());
     LOGGER.info("Injecting configuration and resource managers to the API context");
+    final MultiThreadedHttpConnectionManager connectionManager = new MultiThreadedHttpConnectionManager();
+    connectionManager.getParams().setConnectionTimeout(_config.getServerAdminRequestTimeoutSeconds() * 1000);
     // register all the controller objects for injection to jersey resources
     _adminApp.registerBinder(new AbstractBinder() {
       @Override
@@ -190,6 +207,7 @@ public class ControllerStarter {
         bind(_helixResourceManager).to(PinotHelixResourceManager.class);
         bind(_helixTaskResourceManager).to(PinotHelixTaskResourceManager.class);
         bind(_taskManager).to(PinotTaskManager.class);
+        bind(connectionManager).to(HttpConnectionManager.class);
         bind(_executorService).to(Executor.class);
         bind(_controllerMetrics).to(ControllerMetrics.class);
         bind(accessControlFactory).to(AccessControlFactory.class);
@@ -328,8 +346,6 @@ public class ControllerStarter {
     conf.setStatusCheckerWaitForPushTimeInSeconds(10 * 60);
     conf.setTenantIsolationEnabled(true);
 
-    // set to null because the local file pinot fs factory class is included by default
-    conf.setPinotFSFactoryClasses(null);
     final ControllerStarter starter = new ControllerStarter(conf);
 
     starter.start();

@@ -15,7 +15,6 @@
  */
 package com.linkedin.pinot.queries;
 
-import com.clearspring.analytics.stream.quantile.TDigest;
 import com.linkedin.pinot.common.data.DimensionFieldSpec;
 import com.linkedin.pinot.common.data.FieldSpec;
 import com.linkedin.pinot.common.data.MetricFieldSpec;
@@ -40,6 +39,7 @@ import com.linkedin.pinot.core.query.aggregation.function.PercentileTDigestAggre
 import com.linkedin.pinot.core.query.aggregation.groupby.AggregationGroupByResult;
 import com.linkedin.pinot.core.query.aggregation.groupby.GroupKeyGenerator;
 import com.linkedin.pinot.core.segment.creator.impl.SegmentIndexCreationDriverImpl;
+import com.tdunning.math.stats.TDigest;
 import it.unimi.dsi.fastutil.doubles.DoubleList;
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -81,7 +81,7 @@ public class PercentileTDigestQueriesTest extends BaseQueriesTest {
   protected static final String DOUBLE_COLUMN = "doubleColumn";
   protected static final String TDIGEST_COLUMN = "tDigestColumn";
   protected static final String GROUP_BY_COLUMN = "groupByColumn";
-  protected static final String[] GROUPS = new String[]{"G1", "G2", "G3", "G4", "G5"};
+  protected static final String[] GROUPS = new String[]{"G1", "G2", "G3"};
   protected static final long RANDOM_SEED = System.nanoTime();
   protected static final Random RANDOM = new Random(RANDOM_SEED);
   protected static final String ERROR_MESSAGE = "Random seed: " + RANDOM_SEED;
@@ -122,7 +122,7 @@ public class PercentileTDigestQueriesTest extends BaseQueriesTest {
       double value = RANDOM.nextDouble() * VALUE_RANGE;
       valueMap.put(DOUBLE_COLUMN, value);
 
-      TDigest tDigest = new TDigest(PercentileTDigestAggregationFunction.DEFAULT_TDIGEST_COMPRESSION);
+      TDigest tDigest = TDigest.createMergingDigest(PercentileTDigestAggregationFunction.DEFAULT_TDIGEST_COMPRESSION);
       tDigest.add(value);
       ByteBuffer byteBuffer = ByteBuffer.allocate(tDigest.byteSize());
       tDigest.asBytes(byteBuffer);
@@ -171,9 +171,11 @@ public class PercentileTDigestQueriesTest extends BaseQueriesTest {
         expected = doubleList.getDouble(doubleList.size() * percentile / 100);
       }
       TDigest tDigestForDoubleColumn = (TDigest) aggregationResult.get(1);
-      Assert.assertEquals(tDigestForDoubleColumn.quantile(percentile / 100.0), expected, DELTA, ERROR_MESSAGE);
+      Assert.assertEquals(PercentileTDigestAggregationFunction.calculatePercentile(tDigestForDoubleColumn, percentile),
+          expected, DELTA, ERROR_MESSAGE);
       TDigest tDigestForTDigestColumn = (TDigest) aggregationResult.get(2);
-      Assert.assertEquals(tDigestForTDigestColumn.quantile(percentile / 100.0), expected, DELTA, ERROR_MESSAGE);
+      Assert.assertEquals(PercentileTDigestAggregationFunction.calculatePercentile(tDigestForTDigestColumn, percentile),
+          expected, DELTA, ERROR_MESSAGE);
     }
   }
 
@@ -211,9 +213,13 @@ public class PercentileTDigestQueriesTest extends BaseQueriesTest {
           expected = doubleList.getDouble(doubleList.size() * percentile / 100);
         }
         TDigest tDigestForDoubleColumn = (TDigest) groupByResult.getResultForKey(groupKey, 1);
-        Assert.assertEquals(tDigestForDoubleColumn.quantile(percentile / 100.0), expected, DELTA, ERROR_MESSAGE);
+        Assert.assertEquals(
+            PercentileTDigestAggregationFunction.calculatePercentile(tDigestForDoubleColumn, percentile), expected,
+            DELTA, ERROR_MESSAGE);
         TDigest tDigestForTDigestColumn = (TDigest) groupByResult.getResultForKey(groupKey, 2);
-        Assert.assertEquals(tDigestForTDigestColumn.quantile(percentile / 100.0), expected, DELTA, ERROR_MESSAGE);
+        Assert.assertEquals(
+            PercentileTDigestAggregationFunction.calculatePercentile(tDigestForTDigestColumn, percentile), expected,
+            DELTA, ERROR_MESSAGE);
       }
     }
   }

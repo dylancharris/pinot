@@ -79,6 +79,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import org.apache.commons.httpclient.HttpConnectionManager;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.helix.ZNRecord;
@@ -108,6 +109,9 @@ public class PinotSegmentUploadRestletResource {
 
   @Inject
   ControllerMetrics _controllerMetrics;
+
+  @Inject
+  HttpConnectionManager _connectionManager;
 
   @Inject
   Executor _executor;
@@ -615,7 +619,7 @@ public class PinotSegmentUploadRestletResource {
       URI srcUri) throws Exception {
     // Move tarred segment file to data directory when there is no external download URL
     File tarredSegmentFile = new File(new File(provider.getBaseDataDir(), tableName), segmentName);
-    PinotFS pinotFS = new PinotFSFactory(_controllerConf).create(srcUri);
+    PinotFS pinotFS = PinotFSFactory.create(srcUri.getScheme());
     // The move will overwrite current segment file
     pinotFS.move(srcUri, tarredSegmentFile.toURI());
     LOGGER.info("Moved segment {} from temp location {} to {}", segmentName, srcUri.getPath(), tarredSegmentFile.getAbsolutePath());
@@ -702,7 +706,11 @@ public class PinotSegmentUploadRestletResource {
    */
   private StorageQuotaChecker.QuotaCheckerResponse checkStorageQuota(@Nonnull File segmentFile,
       @Nonnull SegmentMetadata metadata, @Nonnull TableConfig offlineTableConfig) throws InvalidConfigException {
-    TableSizeReader tableSizeReader = new TableSizeReader(_executor, _pinotHelixResourceManager);
+    if (!_controllerConf.getEnableStorageQuotaCheck()) {
+      return StorageQuotaChecker.success("Quota check is disabled");
+    }
+    TableSizeReader tableSizeReader = new TableSizeReader(_executor, _connectionManager,
+        _controllerMetrics, _pinotHelixResourceManager);
     StorageQuotaChecker quotaChecker = new StorageQuotaChecker(offlineTableConfig, tableSizeReader, _controllerMetrics, _pinotHelixResourceManager);
     String offlineTableName = TableNameBuilder.OFFLINE.tableNameWithType(metadata.getTableName());
     return quotaChecker.isSegmentStorageWithinQuota(segmentFile, offlineTableName, metadata.getName(),

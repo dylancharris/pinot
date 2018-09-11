@@ -279,11 +279,13 @@ public class CommonConstants {
         "com.linkedin.pinot.server.request.SimpleRequestHandlerFactory";
     public static final String PREFIX_OF_CONFIG_OF_SEGMENT_FETCHER_FACTORY = "pinot.server.segment.fetcher";
     public static final String PREFIX_OF_CONFIG_OF_SEGMENT_UPLOADER = "pinot.server.segment.uploader";
+    public static final String PREFIX_OF_CONFIG_OF_PINOT_FS_FACTORY = "controller.storage.factory";
     public static final String DEFAULT_STAR_TREE_FORMAT_VERSION = "OFF_HEAP";
     public static final String DEFAULT_COLUMN_MIN_MAX_VALUE_GENERATOR_MODE = "TIME";
   }
 
   public static class Controller {
+    public static final String PREFIX_OF_CONFIG_OF_PINOT_FS_FACTORY = "controller.storage.factory";
     public static final String PREFIX_OF_CONFIG_OF_SEGMENT_FETCHER_FACTORY = "pinot.controller.segment.fetcher";
     public static final String HOST_HTTP_HEADER = "Pinot-Controller-Host";
     public static final String VERSION_HTTP_HEADER = "Pinot-Controller-Version";
@@ -306,6 +308,7 @@ public class CommonConstants {
     public static final String DEFAULT_INSTANCE_BASE_DIR =
         System.getProperty("java.io.tmpdir") + File.separator + "PinotMinion";
     public static final String DEFAULT_INSTANCE_DATA_DIR = DEFAULT_INSTANCE_BASE_DIR + File.separator + "data";
+    public static final String PREFIX_OF_CONFIG_OF_PINOT_FS_FACTORY = "storage.factory";
     public static final String PREFIX_OF_CONFIG_OF_SEGMENT_FETCHER_FACTORY = "segment.fetcher";
     public static final String PREFIX_OF_CONFIG_OF_SEGMENT_UPLOADER = "segment.uploader";
   }

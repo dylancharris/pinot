@@ -23,6 +23,7 @@ import com.linkedin.pinot.common.utils.ClientSSLContextGenerator;
 import com.linkedin.pinot.common.utils.CommonConstants;
 import com.linkedin.pinot.common.utils.NetUtil;
 import com.linkedin.pinot.common.utils.ServiceStatus;
+import com.linkedin.pinot.filesystem.PinotFSFactory;
 import com.linkedin.pinot.minion.events.EventObserverFactoryRegistry;
 import com.linkedin.pinot.minion.events.MinionEventObserverFactory;
 import com.linkedin.pinot.minion.executor.PinotTaskExecutorFactory;
@@ -129,9 +130,15 @@ public class MinionStarter {
     // TODO: set the correct minion version
     minionContext.setMinionVersion("1.0");
 
+    // Start all components
+    LOGGER.info("Initializing PinotFSFactory");
+    Configuration pinotFSConfig = _config.subset(CommonConstants.Minion.PREFIX_OF_CONFIG_OF_PINOT_FS_FACTORY);
+    PinotFSFactory.init(pinotFSConfig);
+
     LOGGER.info("Initializing segment fetchers for all protocols");
-    SegmentFetcherFactory.getInstance()
-        .init(_config.subset(CommonConstants.Minion.PREFIX_OF_CONFIG_OF_SEGMENT_FETCHER_FACTORY));
+    Configuration segmentFetcherFactoryConfig =
+        _config.subset(CommonConstants.Minion.PREFIX_OF_CONFIG_OF_SEGMENT_FETCHER_FACTORY);
+    SegmentFetcherFactory.getInstance().init(segmentFetcherFactoryConfig, pinotFSConfig);
 
     // Need to do this before we start receiving state transitions.
     LOGGER.info("Initializing ssl context for segment uploader");

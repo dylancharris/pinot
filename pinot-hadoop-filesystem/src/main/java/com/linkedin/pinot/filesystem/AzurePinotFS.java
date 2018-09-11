@@ -16,10 +16,13 @@
 package com.linkedin.pinot.filesystem;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.microsoft.azure.datalake.store.ADLFileInputStream;
+import com.microsoft.azure.datalake.store.ADLFileOutputStream;
 import com.microsoft.azure.datalake.store.ADLStoreClient;
 import com.microsoft.azure.datalake.store.DirectoryEntry;
 import com.microsoft.azure.datalake.store.oauth2.AccessTokenProvider;
 import com.microsoft.azure.datalake.store.oauth2.ClientCredsTokenProvider;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -29,6 +32,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.configuration.Configuration;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,6 +79,11 @@ public class AzurePinotFS extends PinotFS {
   }
 
   @Override
+  public boolean mkdir(URI uri) throws IOException {
+    return _adlStoreClient.createDirectory(uri.getPath());
+  }
+
+  @Override
   public boolean delete(URI segmentUri) throws IOException {
     return _adlStoreClient.deleteRecursive(segmentUri.getPath());
   }
@@ -87,8 +96,16 @@ public class AzurePinotFS extends PinotFS {
 
   @Override
   public boolean copy(URI srcUri, URI dstUri) throws IOException {
-    // TODO: Add this method. Not needed for now because file will be in final location
-    throw new UnsupportedOperationException("Cannot copy from AzureFS to AzureFS");
+    if (exists(dstUri)) {
+      delete(dstUri);
+    }
+    _adlStoreClient.createEmptyFile(dstUri.getPath());
+    ADLFileOutputStream appendStream = _adlStoreClient.getAppendStream(dstUri.getPath());
+    ADLFileInputStream readStream = _adlStoreClient.getReadStream(srcUri.getPath());
+    appendStream.write(readStream.read());
+    appendStream.close();
+    readStream.close();
+    return true;
   }
 
   @Override
@@ -115,9 +132,16 @@ public class AzurePinotFS extends PinotFS {
   }
 
   @Override
-  public void copyToLocalFile(URI srcUri, URI dstUri) throws IOException {
+  public void copyToLocalFile(URI srcUri, File dstFile) throws Exception {
+    if (dstFile.exists()) {
+      if (dstFile.isDirectory()) {
+        FileUtils.deleteDirectory(dstFile);
+      } else {
+        FileUtils.deleteQuietly(dstFile);
+      }
+    }
     try (InputStream adlStream = _adlStoreClient.getReadStream(srcUri.getPath())) {
-      Path dstFilePath = Paths.get(dstUri);
+      Path dstFilePath = Paths.get(dstFile.toURI());
 
       /* Copy the source file to the destination directory as a file with the same name as the source,
        * replace an existing file with the same name in the destination directory, if any.
@@ -125,14 +149,14 @@ public class AzurePinotFS extends PinotFS {
        */
       Files.copy(adlStream, dstFilePath);
 
-      LOGGER.info("Copied file {} from ADL to {}", srcUri, dstUri);
+      LOGGER.info("Copied file {} from ADL to {}", srcUri, dstFile);
     } catch (Exception ex) {
       throw ex;
     }
   }
 
   @Override
-  public void copyFromLocalFile(URI srcUri, URI dstUri) throws IOException {
+  public void copyFromLocalFile(File srcFile, URI dstUri) throws IOException {
     // TODO: Add this method. Not needed for now because of metadata upload
     throw new UnsupportedOperationException("Cannot copy from local to Azure");
   }

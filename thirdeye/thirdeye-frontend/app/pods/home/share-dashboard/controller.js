@@ -52,6 +52,7 @@ export default Controller.extend({
 
       if (feedbackItem.value !== 'ALL' && !isBlank(anomalyMapping)) {
         let map = {};
+        let index = 1;
         // Iterate through each anomaly
         Object.keys(anomalyMapping).some(function(metric) {
           Object.keys(anomalyMapping[metric].items).some(function(alert) {
@@ -61,9 +62,12 @@ export default Controller.extend({
                 const metricId = get(item.anomaly, 'metricId');
                 const functionName = get(item.anomaly, 'functionName');
                 const functionId = get(item.anomaly, 'functionId');
+
                 if (!map[metricName]) {
-                  map[metricName] = { 'metricId': metricId, items: {} };
+                  map[metricName] = { 'metricId': metricId, items: {}, count: index };
+                  index++;
                 }
+
                 if(!map[metricName].items[functionName]) {
                   map[metricName].items[functionName] = { 'functionId': functionId, items: [] };
                 }
@@ -131,7 +135,7 @@ export default Controller.extend({
         id: 0,
         name: 'Show only selected metrics/alerts',
         type: 'root',
-        isExpanded: true,
+        isExpanded: false,
         isSelected: false,
         isVisible: true,
         isChecked: true,
@@ -233,6 +237,7 @@ export default Controller.extend({
      * Created a PDF to save
      */
     createPDF(){
+      $('.share-dashboard-container__preview-container-body').css({backgroundColor: '#EDF0F3'});
       html2canvas($('.share-dashboard-container__preview-container-body'), {
         onrendered: (canvas) => {
           const imgData = canvas.toDataURL('image/jpeg', 1.0);
@@ -245,6 +250,7 @@ export default Controller.extend({
           }
           doc.addImage(imgData, 'PNG', 10, 10);
           doc.save(`shared_summary.pdf`);
+          $('.share-dashboard-container__preview-container-body').css({backgroundColor: 'transparent'});
         }
       });
     },
@@ -276,7 +282,6 @@ export default Controller.extend({
     updateComment(id) {
       const userComment = document.getElementById(id).value;
       if (id === 'dashboard_summary') {
-        //document.getElementById(`dashboardId_dashboard_summary`).innerHTML = userComment;
         //update the tree with latest comment
         let res = get(this, 'tree.firstObject');
         set(res, 'comment', userComment);
@@ -317,7 +322,7 @@ export default Controller.extend({
       const shareResponse = get(this, 'shareDashboardApiService').saveShareDashboard(treeView);
       const hashKey = get(this, 'shareDashboardApiService').getHashKey();
       //ADD to helper method
-      let currentUrl = `/app/#/home/share-dashboard?`;
+      let currentUrl = `${window.location.origin}/app/#/home/share-dashboard?`;
       if(get(this, 'model.appName')){
         currentUrl = currentUrl.concat(`appName=${get(this, 'model.appName')}`);
       }

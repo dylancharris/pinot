@@ -16,10 +16,12 @@
 package com.linkedin.pinot.core.common.datatable;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLog;
-import com.clearspring.analytics.stream.quantile.TDigest;
+import com.linkedin.pinot.common.utils.StringUtil;
 import com.linkedin.pinot.core.query.aggregation.function.customobject.AvgPair;
 import com.linkedin.pinot.core.query.aggregation.function.customobject.MinMaxRangePair;
 import com.linkedin.pinot.core.query.aggregation.function.customobject.QuantileDigest;
+import com.tdunning.math.stats.MergingDigest;
+import com.tdunning.math.stats.TDigest;
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
 import it.unimi.dsi.fastutil.ints.IntIterator;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
@@ -29,7 +31,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.Nonnull;
@@ -42,7 +43,6 @@ public class ObjectCustomSerDe {
   private ObjectCustomSerDe() {
   }
 
-  private static final Charset UTF_8 = Charset.forName("UTF-8");
 
   /**
    * Given an object, serialize it into a byte array.
@@ -51,7 +51,7 @@ public class ObjectCustomSerDe {
   @Nonnull
   public static byte[] serialize(@Nonnull Object object) throws IOException {
     if (object instanceof String) {
-      return ((String) object).getBytes("UTF-8");
+      return StringUtil.encodeUtf8((String) object);
     } else if (object instanceof Long) {
       return serializeLong((Long) object);
     } else if (object instanceof Double) {
@@ -85,7 +85,7 @@ public class ObjectCustomSerDe {
   public static <T> T deserialize(@Nonnull byte[] bytes, @Nonnull ObjectType objectType) throws IOException {
     switch (objectType) {
       case String:
-        return (T) new String(bytes, UTF_8);
+        return (T) StringUtil.decodeUtf8(bytes);
       case Long:
         return (T) new Long(ByteBuffer.wrap(bytes).getLong());
       case Double:
@@ -105,7 +105,7 @@ public class ObjectCustomSerDe {
       case IntOpenHashSet:
         return (T) deserializeIntOpenHashSet(bytes);
       case TDigest:
-        return (T) TDigest.fromBytes(ByteBuffer.wrap(bytes));
+        return (T) MergingDigest.fromBytes(ByteBuffer.wrap(bytes));
       default:
         throw new IllegalArgumentException("Illegal object type for de-serialization: " + objectType);
     }
@@ -120,7 +120,7 @@ public class ObjectCustomSerDe {
     switch (objectType) {
       case String:
         byte[] bytes = getBytesFromByteBuffer(byteBuffer);
-        return (T) new String(bytes, UTF_8);
+        return (T) StringUtil.decodeUtf8(bytes);
       case Long:
         return (T) new Long(byteBuffer.getLong());
       case Double:
@@ -142,7 +142,7 @@ public class ObjectCustomSerDe {
       case IntOpenHashSet:
         return (T) deserializeIntOpenHashSet(byteBuffer);
       case TDigest:
-        return (T) TDigest.fromBytes(byteBuffer);
+        return (T) MergingDigest.fromBytes(byteBuffer);
       default:
         throw new IllegalArgumentException("Illegal object type for de-serialization: " + objectType);
     }
