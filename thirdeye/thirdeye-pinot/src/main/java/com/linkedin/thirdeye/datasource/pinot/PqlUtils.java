@@ -72,7 +72,7 @@ public class PqlUtils {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PqlUtils.class);
   private static final int DEFAULT_TOP = 100000;
-  private static final String PERCENTILE_TDIGEST_PREFIX = "percentileTDigest";
+  public static final String PERCENTILE_TDIGEST_PREFIX = "percentileTDigest";
 
 
   /**
@@ -395,7 +395,7 @@ public class PqlUtils {
    * @param aggFunction function enum to convert
    * @return a valid pinot function name
    */
-  private static String convertAggFunction(MetricAggFunction aggFunction) {
+  public static String convertAggFunction(MetricAggFunction aggFunction) {
     if (aggFunction.isPercentile()) {
       return aggFunction.name().replaceFirst(MetricAggFunction.PERCENTILE_PREFIX, PERCENTILE_TDIGEST_PREFIX);
     }
