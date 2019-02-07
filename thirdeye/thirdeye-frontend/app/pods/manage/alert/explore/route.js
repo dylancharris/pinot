@@ -36,7 +36,10 @@ import {
   selfServeApiCommon,
   selfServeApiGraph
 } from 'thirdeye-frontend/utils/api/self-serve';
-import { anomalyResponseObj } from 'thirdeye-frontend/utils/anomaly';
+import {
+  anomalyResponseObj,
+  anomalyResponseMap
+} from 'thirdeye-frontend/utils/anomaly';
 import { getAnomalyDataUrl } from 'thirdeye-frontend/utils/api/anomaly';
 
 /**
@@ -55,8 +58,6 @@ const METRIC_DATA_COLOR = 'blue';
 /**
  * Basic alert page defaults
  */
-const resolutionOptions = ['All Resolutions'];
-const dimensionOptions = ['All Dimensions'];
 const wowOptions = ['Wow', 'Wo2W', 'Wo3W', 'Wo4W'];
 const durationMap = { m:'month', d:'day', w:'week' };
 const baselineOptions = [{ name: 'Predicted', isActive: true }];
@@ -215,7 +216,6 @@ export default Route.extend({
       bucketSize,
       bucketUnit
     } = alertData;
-
     // Derive start/end time ranges based on querystring input with fallback on default '1 month'
     const {
       startStamp,
@@ -273,9 +273,11 @@ export default Route.extend({
         const maxTime = isReplayDone && metricId ? await fetch(maxTimeUrl).then(checkStatus) : moment().valueOf();
         Object.assign(model, { metricDataUrl: buildMetricDataUrl({
           maxTime,
+          endStamp: config.endStamp,
+          startStamp: config.startStamp,
           id: metricId,
           filters: config.filters,
-          granularity: config.bucketUnit,
+          granularity: `${config.bucketSize}_${config.bucketUnit}`,
           dimension: 'All' // NOTE: avoid dimension explosion - config.exploreDimensions ? config.exploreDimensions.split(',')[0] : 'All'
         })});
       })
@@ -400,6 +402,22 @@ export default Route.extend({
   },
 
   /**
+   * Returns an aggregate list of all labels found in the currently-loaded anomaly set
+   * @method _filterResolutionLabels
+   * @param {Array} anomalyData - list of all anomalies for current alert
+   * @returns {Array} list of all labels found in anomaly set
+   * @private
+   */
+  _filterResolutionLabels(anomalyData) {
+    let availableLabels = [];
+    anomalyData.forEach((anomaly) => {
+      let mappedLabel = anomalyResponseMap[anomaly.anomalyFeedback];
+      if (mappedLabel) { availableLabels.push(mappedLabel); }
+    });
+    return availableLabels;
+  },
+
+  /**
    * Fetches all anomaly data for found anomalies - downloads all 'pages' of data from server
    * in order to handle sorting/filtering on the entire set locally. Start/end date are not used here.
    * @param {Array} anomalyIds - list of all found anomaly ids
@@ -479,6 +497,7 @@ export default Route.extend({
    * @return {undefined}
    */
   loadAnomalyData: task(function * (anomalyIds, exploreDimensions) {
+    const dimensionOptions = ['All Dimensions'];
     const hasDimensions = exploreDimensions && exploreDimensions.length;
     // Load data for each anomaly Id
     const rawAnomalies = yield get(this, 'fetchCombinedAnomalies').perform(anomalyIds);
@@ -487,7 +506,7 @@ export default Route.extend({
     // Process anomaly records to make them template-ready
     const anomalyData = yield enhanceAnomalies(rawAnomalies, severityScores);
     // Prepare de-duped power-select option array for anomaly feedback
-    resolutionOptions.push(...new Set(anomalyData.map(record => record.anomalyFeedback)));
+    const resolutionOptions = ['All Resolutions', ...new Set(this._filterResolutionLabels(anomalyData))];
     // Populate dimensions power-select options if dimensions exist
     if (hasDimensions) {
       dimensionOptions.push(...new Set(anomalyData.map(anomaly => anomaly.dimensionString)));
@@ -498,6 +517,7 @@ export default Route.extend({
       dimensionOptions,
       resolutionOptions,
       anomaliesLoaded: true,
+      totalLoadedAnomalies: anomalyData.length,
       baselineOptionsLoading: false
     });
     // Fetch and append extra WoW data for each anomaly record
@@ -552,7 +572,7 @@ export default Route.extend({
     * Refresh route's model.
     */
     refreshModel() {
-      this.refresh();
+      this.replaceWith({ queryParams: { openReport: false } });
     },
 
     /**
@@ -583,7 +603,7 @@ export default Route.extend({
      * https://www.emberjs.com/api/ember/2.16/classes/Route/events/error?anchor=error
      * https://guides.emberjs.com/v2.18.0/routing/loading-and-error-substates/#toc_the-code-error-code-event
      */
-    error() {
+    error(error) {
       return true;
     }
   }

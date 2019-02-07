@@ -1,10 +1,12 @@
 import Controller from '@ember/controller';
 import floatToPercent from 'thirdeye-frontend/utils/float-to-percent';
-import { computed, set, get } from '@ember/object';
+import { computed, set, get, setProperties } from '@ember/object';
 import { isBlank } from '@ember/utils';
 import moment from 'moment';
+import _ from 'lodash';
 import { setUpTimeRangeOptions } from 'thirdeye-frontend/utils/manage-alert-utils';
 import * as anomalyUtil from 'thirdeye-frontend/utils/anomaly';
+import { inject as service } from '@ember/service';
 
 const TIME_PICKER_INCREMENT = 5; // tells date picker hours field how granularly to display time
 const DEFAULT_ACTIVE_DURATION = '1d'; // setting this date range selection as default (Last 24 Hours)
@@ -13,8 +15,9 @@ const DISPLAY_DATE_FORMAT = 'YYYY-MM-DD HH:mm'; // format used consistently acro
 const TIME_RANGE_OPTIONS = ['today', '1d', '2d', '1w'];
 
 export default Controller.extend({
-  anomalyResponseObj: anomalyUtil.anomalyResponseObj,
   toggleCollapsed: false, /* hide/show accordians */
+  isReportAnomalyEnabled: false,
+  store: service('store'),
 
   /**
    * Overrides ember-models-table's css classes
@@ -25,17 +28,27 @@ export default Controller.extend({
 
   init() {
     this._super(...arguments);
-    get(this, 'anomalyResponseObj').push({
+    // Add ALL option to copy of global anomaly response object
+    const anomalyResponseFilterTypes = _.cloneDeep(anomalyUtil.anomalyResponseObj);
+    anomalyResponseFilterTypes.push({
       name: 'All Resolutions',
       value: 'ALL',
       status: 'All Resolutions'
     });
+    setProperties(this, {
+      anomalyResponseFilterTypes,
+      anomalyResponseNames: anomalyResponseFilterTypes.mapBy('name')
+    });
   },
 
-  anomalyResponseNames: computed(
-    'anomalyResponseObj',
+  sortedApplications: computed(
+    'model.applications',
     function() {
-      return anomalyUtil.anomalyResponseObj.mapBy('name');
+      let model = get(this, 'model');
+
+      // Iterate through each anomaly
+      let applications =  this.get('store').peekAll('application').sortBy('application');
+      return applications;
     }
   ),
 
@@ -125,7 +138,7 @@ export default Controller.extend({
               falseNegatives++;
             }
           }
-        })
+        });
       });
 
       const totalAnomaliesCount = get(this, 'anomaliesCount');
@@ -154,12 +167,49 @@ export default Controller.extend({
    * @return {string}
    */
   _checkFeedback: function(selected) {
-    return get(this, 'anomalyResponseObj').find((type) => {
+    return get(this, 'anomalyResponseFilterTypes').find((type) => {
       return type.name === selected;
     });
   },
 
   actions: {
+
+    /**
+     * Sets the selected metric alert if user triggers power-select
+     * @param {String} metric - the metric group for the selection
+     * @param {String} alertNeme - name of selected alert
+     * @return {undefined}
+     */
+    onSelectAlert(metric, alertName) {
+      const targetMetricRecord = get(this.model, 'alertsByMetric')[metric];
+      if (targetMetricRecord.names.length > 1) {
+        targetMetricRecord.selectedIndex = targetMetricRecord.names.findIndex(alert => { return alert === alertName; });
+      }
+    },
+
+    /**
+     * Navigates to the alert page for selected alert for the purpose of reporting a missing anomaly
+     * @param {String} metric - the metric group for the selection
+     * @param {Array} anomalyList - array of anomalies for selected metric
+     * @return {undefined}
+     */
+    onClickReport(metric, anomalyList) {
+      const targetMetricRecord = get(this.model, 'alertsByMetric')[metric];
+      const targetId = targetMetricRecord.ids[targetMetricRecord.selectedIndex];
+      const duration = anomalyList[0].humanizedObject.queryDuration;
+      const startDate = anomalyList[0].humanizedObject.queryStart;
+      const endDate = anomalyList[0].humanizedObject.queryEnd;
+      // Navigate to alert page for selected alert
+      if (targetId) {
+        this.transitionToRoute('manage.alert', targetId, { queryParams: {
+          duration,
+          startDate,
+          endDate,
+          openReport: true
+        }});
+      }
+    },
+
     /**
      * Toggles the show/hide of the metric tables
      */

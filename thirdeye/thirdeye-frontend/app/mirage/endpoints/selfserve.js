@@ -37,11 +37,11 @@ export default function (server) {
     return {
       "Result":"OK",
       "Records":[
-      "thirdeye-demo::thirdeye_rec1",
-      "thirdeye-demo::Thirdeye_rec2",
-      "thirdeye-demo::Thirdeye_rec3",
-      "thirdeye-demo::Thirdeye_rec4",
-      "thirdeye-demo::Thirdeye_rec5"
+        "thirdeye-demo::thirdeye_rec1",
+        "thirdeye-demo::Thirdeye_rec2",
+        "thirdeye-demo::Thirdeye_rec3",
+        "thirdeye-demo::Thirdeye_rec4",
+        "thirdeye-demo::Thirdeye_rec5"
       ]
     };
   });
@@ -206,4 +206,18 @@ export default function (server) {
     const idArray = request.queryParams.anomalyIds ? request.queryParams.anomalyIds : [ 38456269 ];
     return anomalySet(idArray.split(','));
   });
+
+  /**
+   * get request for all detection alerters
+   */
+  server.get('/thirdeye/entity/DETECTION_ALERT_CONFIG', () => {
+    return [];
+  });
+
+  /**
+   * get request for list yaml configs
+   */
+  server.get('/yaml/list', () => {
+    return [];
+  })
 }

@@ -1,0 +1,142 @@
+<fieldset class="te-form__section te-form__section--first row">
+  <div class="col-xs-12">
+    <legend class="te-form__section-title">{{alertTitle}}</legend>
+  </div>
+  <div class="col-xs-12 {{if isEditMode "bottom-margin"}}">
+    {{#unless isEditMode}}
+      <label for="select-metric" class="control-label te-label te-label--taller required">Can't find your metric?
+        {{#link-to "self-serve.import-metric" class="thirdeye-link-secondary thirdeye-link-secondary--inside"}}
+          Import a Metric From InGraphs
+        {{/link-to}}
+      </label>
+    {{/unless}}
+    <div class="pull-right">
+      {{bs-button
+        defaultText="Reset"
+        type="outline-primary"
+        buttonType="reset"
+        onClick=(action "resetYAML" "anomaly")
+        class="te-button te-button--link"
+      }}
+      {{bs-button
+        defaultText="View Documentation"
+        type="outline-primary"
+        buttonType="link"
+        onClick=(action "triggerDoc" "Anomaly")
+        class="te-button te-button--cancel"
+      }}
+    </div>
+  </div>
+  <div class="col-xs-12">
+    {{ember-ace
+      lines=35
+      value=currentYamlAlert
+      suggestCompletions=(action 'yamlSuggestions')
+      enableLiveAutocompletion=true
+      update=(action "onYMLSelectorAction")
+      mode="ace/mode/yaml"
+    }}
+  </div>
+  <div class="col-xs-12">
+    {{#bs-accordion onChange=(action (mut toggleCollapsed)) as |acc|}}
+      {{#acc.item value=preview as |aitem|}}
+        {{#aitem.title}}
+          <section class="dashboard-container__title">Preview alert
+            <span class="pull-right"><i class="glyphicon glyphicon-menu-{{if toggleCollapsed "down" "up"}}"></i></span>
+          </section>
+        {{/aitem.title}}
+        {{#aitem.body}}
+          {{#alert-details
+            alertYaml=alertYaml
+            disableYamlSave=disableYamlSave
+          }}
+            {{yield}}
+          {{/alert-details}}
+        {{/aitem.body}}
+      {{/acc.item}}
+    {{/bs-accordion}}
+  </div>
+
+  <div class="col-xs-12">
+    <hr/>
+  </div>
+  {{#if showSettings}}
+    <div class="col-xs-12">
+      <legend class="te-form__section-title">{{alertSettingsTitle}}</legend>
+    </div>
+    <div class="col-xs-4">
+      <label class="te-label te-label--small">Add this alert to a subscription group</label>
+      {{!--  subscription group --}}
+      {{#power-select
+        placeholder="Create a subscription group"
+        options=subscriptionGroupNamesDisplay
+        selected=groupName
+        searchField="name"
+        onchange=(action 'onYAMLGroupSelectionAction')
+        as |groupName|
+      }}
+        {{groupName.name}} ({{groupName.id}})
+      {{/power-select}}
+    </div>
+    <div class="col-xs-12">
+      <label for="select-metric" class="control-label te-label te-label--taller required">Can't find your team? Contact
+        <a class="thirdeye-link-secondary" target="_blank" href="mailto:ask_thirdeye@linkedin.com">ask_thirdeye@linkedin.com</a>
+      </label>
+      <div class="pull-right">
+        {{bs-button
+          defaultText="Reset"
+          type="outline-primary"
+          buttonType="reset"
+          onClick=(action "resetYAML" "notification")
+          class="te-button te-button--link"
+        }}
+        {{bs-button
+          defaultText="View Documentation"
+          type="outline-primary"
+          buttonType="link"
+          onClick=(action "triggerDoc" "Notification")
+          class="te-button te-button--cancel"
+        }}
+      </div>
+    </div>
+    <div class="col-xs-12">
+      {{!-- notification settings editor --}}
+      {{ember-ace
+        lines=25
+        value=currentYamlSettings
+        update=(action "onYMLSettingsSelectorAction")
+        mode="ace/mode/yaml"
+      }}
+    </div>
+  {{/if}}
+  <div class="col-xs-12">
+    {{#if isErrorMsg}}
+      <div class="yaml-editor-msg">
+        <p class="yaml-editor-msg__icon"><i class="yaml-editor-msg__icon--error glyphicon glyphicon-remove-circle"></i>Error in the yaml file</p>
+        <p>Message: {{errorMsg}}</p>
+      </div>
+    {{/if}}
+  </div>
+</fieldset>
+
+<fieldset class="te-form__section-submit">
+  {{#if isEditMode}}
+    {{bs-button
+      defaultText="Save changes"
+      type="primary"
+      buttonType="submit"
+      disabled=disableYamlSave
+      onClick=(action "saveEditYamlAction")
+      class="te-button te-button--submit"
+    }}
+  {{else}}
+    {{bs-button
+      defaultText="Create alert"
+      type="primary"
+      buttonType="submit"
+      disabled=disableYamlSave
+      onClick=(action "createAlertYamlAction")
+      class="te-button te-button--submit"
+    }}
+  {{/if}}
+</fieldset>

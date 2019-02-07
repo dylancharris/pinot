@@ -59,6 +59,20 @@ export default DS.RESTAdapter.extend({
   },
 
   /**
+   * @summary Handle any specific errors on request attempts
+   */
+  handleError(status) {
+    if (status) {
+      // Redirect if one of the errors is a 401 from the API.
+      const unauthorized = status === S_401_UNAUTHORIZED;
+      if (unauthorized) {
+        this.get('session').invalidate();
+      }
+
+    }
+  },
+
+  /**
    * @summary The urlForQuery (called with query) works like the `query` hook above. Both allow mutating the request url.
    */
   urlForQuery (query, modelName) {
@@ -74,8 +88,10 @@ export default DS.RESTAdapter.extend({
         return `${this.get('namespace')}/${query.key}`;
       }
       case 'share': {
-        const shareId = query.shareId;
-        return `${this.get('namespace')}/${shareId}`;
+        return `${this.get('namespace')}/${query.shareId}`;
+      }
+      case 'share-config': {
+        return `${this.get('namespace')}/${query.appName}`;
       }
       default: {
         return this._super(...arguments);
@@ -102,6 +118,10 @@ export default DS.RESTAdapter.extend({
     }
   },
 
+  /**
+   * @summary Defining buildURL depending on what properties have changed
+   * In this method, you need to examine the snapshot and adjust the URL accordingly.
+   */
   urlForUpdateRecord: function(id, modelName/*, snapshot*/) {
     return this._buildURL(modelName, id);
   }

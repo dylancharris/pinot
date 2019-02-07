@@ -13,8 +13,7 @@ export default Route.extend(ApplicationRouteMixin, {
   beforeModel() {
     // calling this._super to trigger ember-simple-auth's hook
     this._super(...arguments);
-    // SM: leaving this here for reference if needed
-    const isProdEnv = config.environment !== 'development';
+
     // invalidates session if cookie expired
     if (this.get('session.isAuthenticated')) {
       fetch('/auth')
@@ -70,22 +69,26 @@ export default Route.extend(ApplicationRouteMixin, {
      * we will catch 401 and provide a specific 401 message on the login page. With that, we will also store the last transition attempt
      * to retry upon successful authentication. Last, we will logout the user to destroy the session and allow the user to login to be authenticated.
      */
-    error: function(error, transition) {
+    error: function(error, /*transition*/) {
+      const isDevEnv = config.environment === 'development';
+
       const notifications = this.get('notifications');
-      if (error.message === '401' || error.response.status === '401') {
+      const toastOptions = {
+        timeOut: '4000',
+        positionClass: 'toast-bottom-right'
+      };
+      const toastMsg = 'Something went wrong with a request. Please try again or come back later.';
+      if (error.message === '401' || (error.response && error.response.status === '401')) {
         this.set('session.store.errorMsg', 'Your session expired. Please login again.');
         this.transitionTo('logout');
-      } else if (error.message === '500' || error.response.status === '500') {
-        notifications.error('Something went wrong with a request. Please try again or come back later.', '500 error detected', {
-          timeOut: '4000',
-          positionClass: 'toast-bottom-right'
-        });
+      } else if (error.message === '500' || (error.response && error.response.status === '500')) {
+        notifications.error(toastMsg, '500 error detected', toastOptions);
       } else {
-        const errorStatus = error.response.status || 'Unknown';
-        notifications.error('Something went wrong with a request. Please try again or come back later.', `${errorStatus} error detected`, {
-          timeOut: '4000',
-          positionClass: 'toast-bottom-right'
-        });
+        const errorStatus = error.response ? error.response.status : 'Unknown';
+        notifications.error(toastMsg, `${errorStatus} error detected`, toastOptions);
+      }
+      if (isDevEnv) {
+        throw error;
       }
     }
   }
